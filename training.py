@@ -12,7 +12,7 @@ def mean_reward(rewards):
 
 
 class NetworkTrainer():
-    def __init__(self, module, env, lr=1e-3, episodes=500, eps=.8, loss=nn.MSELoss(reduction='mean'), 
+    def __init__(self, module, env, lr=1e-3, episodes=10000, eps=.5, loss=nn.MSELoss(reduction='mean'), 
                 gamma=1.0, batch_size=16, replay_size= 3000):
         self.module = module.to(device)
         self.optim = optim.Adam(self.module.parameters(), lr=lr)
@@ -26,6 +26,7 @@ class NetworkTrainer():
         self.gamma = gamma
         self.batch_size = batch_size
         self.replay_size = 3000
+        self.best = -50
 
 
     def training(self, print_eval=True):
@@ -74,7 +75,7 @@ class NetworkTrainer():
                         action = temp_agent(observation, None)
                 
                 # Update eps
-                self.eps = max(0.1, 1 - (1.0/float(self.episodes) * episode))
+                self.eps = max(0.1, self.eps - (1.0/float(self.episodes)))
 
                 #print("Episode", episode, "t", t,"Action", action)
                 
@@ -82,7 +83,7 @@ class NetworkTrainer():
                 t += 1
                 observation, reward, done, info = trainer.step(action)
                 reward = 0 if reward is None else reward
-                reward = -1 if reward is None and done else reward
+                reward = -1 if reward is None else reward
 
                 self.replay_memory.append((np.array(observation_old['board']).reshape(1, self.rows, self.columns), action, reward,
                                             np.array(observation['board']).reshape(1, self.rows, self.columns), done))
@@ -116,14 +117,20 @@ class NetworkTrainer():
                 self.optim.step()
 
             
-            if print_eval:
+            if print_eval and episode % 500 == 499:
                 self.env.reset()
                 print("Loss in episode", episode, loss.item())
-                print("Our vs Negamax:", mean_reward(evaluate("connectx", [temp_agent, "negamax"], num_episodes=10)))
-                print("Our vs Random:", mean_reward(evaluate("connectx", [temp_agent, "random"], num_episodes=10)))
+                reward_random = mean_reward(evaluate("connectx", [temp_agent, "random"], num_episodes=50))
+                reward_negamax =  mean_reward(evaluate("connectx", [temp_agent, "negamax"], num_episodes=50))
+                print("Ours vs Negamax:", reward_negamax)
+                print("Ours vs Random:",reward_random)
                 print()
 
+                if self.best < (reward_random+reward_negamax):
+                    torch.save(self.module.state_dict(), "model/"+ type(self.module).__name__ +  ".pt")
+                    torch.save(self.optim.state_dict(), "optimizer/"+ type(self.module).__name__  + ".pt")
+
 if __name__ == "__main__":
-    env = make("connectx", debug=True)
+    env = make("connectx", debug=False)
     env.render()
     NetworkTrainer(Q_Network(), env).training()

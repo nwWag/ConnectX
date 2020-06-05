@@ -12,7 +12,8 @@ def mean_reward(rewards):
 
 
 class NetworkTrainer():
-    def __init__(self, module, env, lr=1e-3, episodes=500, eps=.5, loss=nn.MSELoss(reduction='mean'), gamma=1.0, batch_size=16):
+    def __init__(self, module, env, lr=1e-3, episodes=500, eps=.8, loss=nn.MSELoss(reduction='mean'), 
+                gamma=1.0, batch_size=16, replay_size= 3000):
         self.module = module.to(device)
         self.optim = optim.Adam(self.module.parameters(), lr=lr)
         self.episodes = episodes
@@ -24,7 +25,7 @@ class NetworkTrainer():
         self.replay_memory = []
         self.gamma = gamma
         self.batch_size = batch_size
-
+        self.replay_size = 3000
 
 
     def training(self, print_eval=True):
@@ -71,7 +72,9 @@ class NetworkTrainer():
                 else:
                     with torch.no_grad():
                         action = temp_agent(observation, None)
-                    
+                
+                # Update eps
+                self.eps = max(0.1, 1 - (1.0/float(self.episodes) * episode))
 
                 #print("Episode", episode, "t", t,"Action", action)
                 
@@ -81,9 +84,11 @@ class NetworkTrainer():
                 reward = 0 if reward is None else reward
                 reward = -1 if reward is None and done else reward
 
-                self.replay_memory.append((np.array(observation_old['board']).reshape(1,1, self.rows, self.columns), action, reward,
-                                            np.array(observation['board']).reshape(1,1, self.rows, self.columns), done))
-
+                self.replay_memory.append((np.array(observation_old['board']).reshape(1, self.rows, self.columns), action, reward,
+                                            np.array(observation['board']).reshape(1, self.rows, self.columns), done))
+                # Check replay size
+                if len(self.replay_memory) > self.replay_size:
+                    del self.replay_memory[0]
 
                 # Select random transitions and concatenate to batch +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
                 batch_tuples = random.choices(self.replay_memory, k=self.batch_size)
@@ -106,7 +111,6 @@ class NetworkTrainer():
                 Qs_old_batch =  get_Qs_batch(observation_old_batch)
                 x = Qs_old_batch[action_batch[:,0], action_batch[:,1]]
                 self.optim.zero_grad()
-                print(x.shape, y.shape)
                 loss = torch.mean((x - y)**2)
                 loss.backward()
                 self.optim.step()
@@ -114,10 +118,10 @@ class NetworkTrainer():
             
             if print_eval:
                 self.env.reset()
-                print(loss.item())
-                print("My Agent vs Random Agent:", mean_reward(evaluate("connectx", [temp_agent, "negamax"], num_episodes=10)))
-                print("My Agent vs Random Agent:", mean_reward(evaluate("connectx", [temp_agent, "random"], num_episodes=10)))
-    
+                print("Loss in episode", episode, loss.item())
+                print("Our vs Negamax:", mean_reward(evaluate("connectx", [temp_agent, "negamax"], num_episodes=10)))
+                print("Our vs Random:", mean_reward(evaluate("connectx", [temp_agent, "random"], num_episodes=10)))
+                print()
 
 if __name__ == "__main__":
     env = make("connectx", debug=True)

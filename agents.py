@@ -3,9 +3,9 @@ from torch import nn, optim
 import numpy as np
 from config import device
 
-class Q_Network(nn.Module):
+class Q_Network_Conv(nn.Module):
     def __init__(self, nc=1, ngf = 16):
-        super(Q_Network, self).__init__()
+        super(Q_Network_Conv, self).__init__()
         self.ngf = ngf
         self.conv = nn.Sequential(
             nn.Conv2d( nc, ngf, 5, 1, 1, bias=False),
@@ -34,5 +34,22 @@ class Q_Network(nn.Module):
         x = x.reshape(x.shape[0], self.ngf, -1)
         x, _ = torch.max(x, dim=2)
         x = self.predict(torch.cat((x, config), dim=1))
+
+        return x
+
+class Q_Network(nn.Module):
+    def __init__(self, nc=6*7, ngf = 128, actions=7):
+        super(Q_Network, self).__init__()
+        self.ngf = ngf
+        self.predict = nn.Sequential(nn.Linear(nc, ngf), nn.SELU(),
+                                    nn.Linear(ngf, ngf), nn.SELU(),
+                                    nn.Linear(ngf, actions), nn.Tanh())
+
+
+
+
+    def forward(self, x):
+        x = x.reshape(x.shape[0], -1).float()
+        x = self.predict(x)
 
         return x

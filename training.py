@@ -12,9 +12,11 @@ def mean_reward(rewards):
 
 
 class NetworkTrainer():
-    def __init__(self, module, env, lr=1e-3, episodes=10000, eps=.5, loss=nn.MSELoss(reduction='mean'), 
-                gamma=1.0, batch_size=16, replay_size= 3000):
+    def __init__(self, module, module_copy, env, lr=1e-3, episodes=100000, eps=.8, loss=nn.MSELoss(reduction='mean'), 
+                gamma=0.99, batch_size=32, replay_size= 10000, eval_every=1000, copy_every=500):
         self.module = module.to(device)
+        self.module_hat = module_copy.to(device)
+        self.module_hat.load_state_dict(self.module.state_dict())
         self.optim = optim.Adam(self.module.parameters(), lr=lr)
         self.episodes = episodes
         self.env = env
@@ -25,16 +27,18 @@ class NetworkTrainer():
         self.replay_memory = []
         self.gamma = gamma
         self.batch_size = batch_size
-        self.replay_size = 3000
+        self.replay_size = 5000
         self.best = -50
+        self.eval_every = eval_every
+        self.copy_every = copy_every
 
 
-    def training(self, print_eval=True):
+    def training(self):
         self.env.reset()
         self.Qs = None
         # Agent functions ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
         def get_Qs_iter(observation):
-            Qs  = []
+            Qs  = [].N  
             input_observation = torch.from_numpy(np.array(observation['board'])).to(device).reshape(1,1, self.rows, self.columns)                
             for c in range(self.columns):
                 Q_c = self.module(input_observation, torch.ones(1).to(device) * c)
@@ -42,8 +46,11 @@ class NetworkTrainer():
             self.Qs = Qs
             return Qs
 
-        def get_Qs_batch(input_observation):         
-            Qs = self.module(input_observation)
+        def get_Qs_batch(input_observation, hat=False):       
+            if hat:
+                Qs = self.module_hat(input_observation)
+            else:  
+                Qs = self.module(input_observation)
             self.Qs = Qs
             return Qs
 
@@ -57,11 +64,24 @@ class NetworkTrainer():
         def temp_agent(observation, _):
             return int(np.argmax(np.array([q.item() for q in get_Qs(observation)])))
 
+        def switch(board):
+            board[board == 1] = 3
+            board[board == 2] = 1
+            board[board == 3] = 2
+            return board
+
         # Run episodes +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-        trainer = self.env.train([None, temp_agent])
         for episode in range(self.episodes):
-        
+
+            # Decide "who" starts to be able to start in first and second place
+            if episode % 2 == 0:
+                trainer = self.env.train([None, temp_agent])
+                player_pos = 1
+            else:
+                trainer = self.env.train([temp_agent, None])
+                player_pos = 2
+
             observation = trainer.reset()
             t = 0
             while not self.env.done:
@@ -69,13 +89,13 @@ class NetworkTrainer():
                 # Decide step ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
                 observation_old = observation
                 if random.uniform(0, 1) <= self.eps:
-                    action = choice([c for c in range(self.columns) if observation.board[c] == 0])
+                    action = choice([c for c in range(self.columns) if observation['board'][c] == 0])
                 else:
                     with torch.no_grad():
                         action = temp_agent(observation, None)
                 
                 # Update eps
-                self.eps = max(0.1, self.eps - (1.0/float(self.episodes)))
+                self.eps = max(0.1, self.eps * .999)
 
                 #print("Episode", episode, "t", t,"Action", action)
                 
@@ -86,7 +106,7 @@ class NetworkTrainer():
                 reward = -1 if reward is None else reward
 
                 self.replay_memory.append((np.array(observation_old['board']).reshape(1, self.rows, self.columns), action, reward,
-                                            np.array(observation['board']).reshape(1, self.rows, self.columns), done))
+                                            np.array(observation['board']).reshape(1, self.rows, self.columns), done, player_pos))
                 # Check replay size
                 if len(self.replay_memory) > self.replay_size:
                     del self.replay_memory[0]
@@ -94,36 +114,51 @@ class NetworkTrainer():
                 # Select random transitions and concatenate to batch +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
                 batch_tuples = random.choices(self.replay_memory, k=self.batch_size)
 
-                observation_batch = torch.stack([torch.from_numpy(np.array(tuple_[3])).to(device).float() for tuple_ in batch_tuples])
-                observation_old_batch = torch.stack([torch.from_numpy(np.array(tuple_[0])).to(device).float() for tuple_ in batch_tuples])
+                observation_batch = torch.stack([torch.from_numpy(np.array(tuple_[3] if tuple_[5] == 1 else switch(tuple_[3]))).to(device).float() for tuple_ in batch_tuples])
+                observation_old_batch = torch.stack([torch.from_numpy(np.array(tuple_[0] if tuple_[5] == 1 else switch(tuple_[0]))).to(device).float() for tuple_ in batch_tuples])
                 reward_batch = torch.stack([torch.from_numpy(np.array(tuple_[2])).to(device).float() for tuple_ in batch_tuples])
 
                 action_batch = torch.from_numpy(np.array([[i, tuple_[1]] for i, tuple_ in enumerate(batch_tuples)]))
                 done_batch = np.array([tuple_[4] for tuple_ in batch_tuples])
 
+
                 # Calculate target +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+                # Using Double DQN implementation
                 with torch.no_grad():
-                    Qs_batch = get_Qs_batch(observation_batch)
-                    Qs_max_batch, _ = torch.max(Qs_batch, dim=1)
+                    Qs_batch_hat = get_Qs_batch(observation_batch, hat=True)
+                    Qs_batch = get_Qs_batch(observation_batch, hat=False)
+                    Qs_arg_max_batch = torch.argmax(Qs_batch, dim=1)
+
+                    # check if column full +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+                    illegal = torch.squeeze(observation_batch, dim=1)[torch.arange(Qs_arg_max_batch.shape[0]).to(device),0,Qs_arg_max_batch] != 0
+                    Qs_max_batch = Qs_batch_hat[torch.arange(Qs_arg_max_batch.shape[0]).to(device),Qs_arg_max_batch]
                     Qs_max_batch[done_batch] = 0
                     y = reward_batch + self.gamma * Qs_max_batch
+                    # Be good, dont do anything illegal
+                    y[illegal] = -100
 
                 # Perform gradient descent +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-                Qs_old_batch =  get_Qs_batch(observation_old_batch)
+                Qs_old_batch =  get_Qs_batch(observation_old_batch, hat=False)
                 x = Qs_old_batch[action_batch[:,0], action_batch[:,1]]
                 self.optim.zero_grad()
                 loss = torch.mean((x - y)**2)
                 loss.backward()
                 self.optim.step()
 
+            if episode % self.copy_every == self.copy_every - 1:
+                self.module_hat.load_state_dict(self.module.state_dict())
             
-            if print_eval and episode % 500 == 499:
+            if episode % self.eval_every == self.eval_every -1:
                 self.env.reset()
                 print("Loss in episode", episode, loss.item())
                 reward_random = mean_reward(evaluate("connectx", [temp_agent, "random"], num_episodes=50))
                 reward_negamax =  mean_reward(evaluate("connectx", [temp_agent, "negamax"], num_episodes=50))
+                reward_rand_random = mean_reward(evaluate("connectx", ["random", "random"], num_episodes=10))
+                reward_rand_negamax =  mean_reward(evaluate("connectx", ["random", "negamax"], num_episodes=10))
                 print("Ours vs Negamax:", reward_negamax)
                 print("Ours vs Random:",reward_random)
+                print("Random vs Negamax:", reward_rand_negamax)
+                print("Random vs Random:",reward_rand_random)
                 print()
 
                 if self.best < (reward_random+reward_negamax):
@@ -133,4 +168,4 @@ class NetworkTrainer():
 if __name__ == "__main__":
     env = make("connectx", debug=False)
     env.render()
-    NetworkTrainer(Q_Network(), env).training()
+    NetworkTrainer(Q_Network(), Q_Network(), env).training()

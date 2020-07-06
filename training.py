@@ -14,8 +14,8 @@ def mean_reward(rewards):
     return sum(r[0] if r[0] is not None else -1 for r in rewards) / float(len(rewards))
 
 class NetworkTrainer():
-    def __init__(self, module, module_copy, env, lr=5e-4, episodes=100000, epochs=2, eps=.99, loss=nn.SmoothL1Loss(), 
-                gamma=0.99, batch_size=32, replay_size= 15000, eval_every=2000, copy_every=100):
+    def __init__(self, module, module_copy, env, lr=1e-2, episodes=100000, epochs=2, eps=.99, loss=nn.SmoothL1Loss(), 
+                gamma=0.99, batch_size=32, replay_size= 15000, eval_every=3000, copy_every=100):
         self.module = module.to(device)
         self.module_hat = module_copy.to(device)
         self.module_hat.load_state_dict(self.module.state_dict())
@@ -82,22 +82,18 @@ class NetworkTrainer():
             if episode % 2 == 0:
                 trainer = self.env.train([None, temp_agent])
                 player_pos = 1
-                switch_board = False
             else:
                 trainer = self.env.train([temp_agent, None])
                 player_pos = 2
-                switch_board = True
 
             observation = trainer.reset()
             t = 0
             while not self.env.done:
                 # Decide step ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
                 self.module.eval()
+                if observation.mark != 1:
+                    observation = switch(observation)
                 observation_old = observation
-                if switch_board:
-                    observation_old['board'] = switch(observation['board'])
-                    observation['board'] = switch(observation['board'])
-
                 if random.uniform(0, 1) <= self.eps:
                     action = choice([c for c in range(self.columns) if observation['board'][c] == 0])
                 else:
@@ -149,8 +145,8 @@ class NetworkTrainer():
                         if len(batch_tuples) < self.batch_size:
                             continue
 
-                        observation_batch = torch.stack([torch.from_numpy(np.array(tuple_[3] if tuple_[5] == 1 else switch(tuple_[3]))).to(device).float() for tuple_ in batch_tuples])
-                        observation_old_batch = torch.stack([torch.from_numpy(np.array(tuple_[0] if tuple_[5] == 1 else switch(tuple_[0]))).to(device).float() for tuple_ in batch_tuples])
+                        observation_batch = torch.stack([torch.from_numpy(np.array(tuple_[3])).to(device).float() for tuple_ in batch_tuples])
+                        observation_old_batch = torch.stack([torch.from_numpy(np.array(tuple_[0])).to(device).float() for tuple_ in batch_tuples])
                         reward_batch = torch.stack([torch.from_numpy(np.array(tuple_[2])).to(device).float() for tuple_ in batch_tuples])
 
                         action_batch = torch.from_numpy(np.array([[i, tuple_[1]] for i, tuple_ in enumerate(batch_tuples)]))

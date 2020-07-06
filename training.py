@@ -82,17 +82,22 @@ class NetworkTrainer():
             if episode % 2 == 0:
                 trainer = self.env.train([None, temp_agent])
                 player_pos = 1
+                switch_board = False
             else:
                 trainer = self.env.train([temp_agent, None])
                 player_pos = 2
+                switch_board = True
 
             observation = trainer.reset()
             t = 0
             while not self.env.done:
-            
                 # Decide step ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
                 self.module.eval()
                 observation_old = observation
+                if switch_board:
+                    observation_old['board'] = switch(observation['board'])
+                    observation['board'] = switch(observation['board'])
+
                 if random.uniform(0, 1) <= self.eps:
                     action = choice([c for c in range(self.columns) if observation['board'][c] == 0])
                 else:
@@ -126,12 +131,16 @@ class NetworkTrainer():
                 # Check replay size
                 if len(self.replay_memory) > self.replay_size:
                     del self.replay_memory[0]
+
+            #Store anything to plot
             cum_rewards.append(np.array(cum_reward))
             avg_rewards.append(np.mean(np.array(cum_rewards[max(0, episode - 100):(episode + 1)])))
+
             # Update (use full memory) and copy 
             if episode % self.copy_every == self.copy_every - 1:
                 plt.plot(avg_rewards)
                 plt.savefig('plots/cum_rewards.png')
+                plt.close()
                 loss_arr = []
                 # Select transitions and concatenate to batch +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
                 for epoch in range(self.epochs):
@@ -157,8 +166,8 @@ class NetworkTrainer():
                             # check if column full +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
                             illegal = torch.squeeze(observation_batch, dim=1)[torch.arange(Qs_batch.shape[0]).to(device),0] != 0
                             # Be good, dont do anything illegal
-                            Qs_batch[illegal] = -float('inf')
-                            Qs_batch_hat[illegal] = -float('inf')
+                            Qs_batch[illegal] = -1000
+                            Qs_batch_hat[illegal] = -1000
                             Qs_arg_max_batch = torch.argmax(Qs_batch, dim=1)
 
                             Qs_max_batch = Qs_batch_hat[torch.arange(Qs_arg_max_batch.shape[0]).to(device),Qs_arg_max_batch]

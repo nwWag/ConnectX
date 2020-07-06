@@ -56,26 +56,29 @@ class Q_Network_Flat(nn.Module):
         return x
 
 class Q_Network(nn.Module):
-    def __init__(self, ngf = 64, actions=7):
+    def __init__(self, ngf = 64, actions=7, bn=False):
         super(Q_Network, self).__init__()
         self.ngf = ngf
+        self.activation = nn.ReLU
+        self.bn = bn
+
         self.conv = nn.Sequential(
             nn.Conv2d(3, ngf, 3, 1, 1, bias=False),
-            nn.BatchNorm2d(ngf),
-            nn.PReLU(),
+            nn.BatchNorm2d(3) if self.bn else nn.Identity(),
+            self.activation(),
 
             nn.Conv2d(ngf, ngf, 3, 1, 1, bias=False),
-            nn.BatchNorm2d(ngf),
-            nn.PReLU(),
+            nn.BatchNorm2d(3) if self.bn else nn.Identity(),
+            self.activation(),
 
-            nn.Conv2d( ngf, ngf, 3, 1, 1, bias=False),
-            nn.BatchNorm2d(ngf),
-            nn.PReLU()
+            nn.Conv2d(ngf, ngf, 3, 1, 1, bias=False),
+            nn.BatchNorm2d(3) if self.bn else nn.Identity(),
+            self.activation()
         )
 
-        self.predict = nn.Sequential(nn.Linear(126, ngf), nn.SELU(),
-                                    nn.Linear(ngf, ngf), nn.SELU(),
-                                    nn.Linear(ngf, actions))#, nn.Tanh())
+        self.predict = nn.Sequential(nn.Linear(126, ngf), nn.BatchNorm1d(ngf) if self.bn else nn.Identity(), self.activation(),
+                                     nn.Linear(ngf, ngf), nn.BatchNorm1d(ngf) if self.bn else nn.Identity(), self.activation(),
+                                     nn.Linear(ngf, actions))#, nn.Softmax())
 
     def forward(self, x):
         rows = x.shape[2]

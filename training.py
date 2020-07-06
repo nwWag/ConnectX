@@ -14,8 +14,8 @@ def mean_reward(rewards):
     return sum(r[0] if r[0] is not None else -1 for r in rewards) / float(len(rewards))
 
 class NetworkTrainer():
-    def __init__(self, module, module_copy, env, lr=1e-3, episodes=100000, epochs=2, eps=.99, loss=nn.SmoothL1Loss(), 
-                gamma=0.99, batch_size=32, replay_size= 15000, eval_every=3000, copy_every=100):
+    def __init__(self, module, module_copy, env, lr=1e-3, episodes=100000, epochs=2, eps=.99, loss=nn.MSELoss(reduction='mean'), 
+                gamma=0.99, batch_size=64, replay_size= 15000, eval_every=3000, copy_every=150):
         self.module = module.to(device)
         self.module_hat = module_copy.to(device)
         self.module_hat.load_state_dict(self.module.state_dict())
@@ -116,7 +116,7 @@ class NetworkTrainer():
                     elif reward == 0: # Lost
                         reward = -20
                     else: # Draw
-                        reward = 10
+                        reward = 0
                 else:
                     reward = -0.05
                     #reward = -1 if reward is None else reward

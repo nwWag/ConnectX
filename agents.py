@@ -56,10 +56,10 @@ class Q_Network_Flat(nn.Module):
         return x
 
 class Q_Network(nn.Module):
-    def __init__(self, ngf = 64, actions=7, bn=False):
+    def __init__(self, ngf = 128, actions=7, bn=False):
         super(Q_Network, self).__init__()
         self.ngf = ngf
-        self.activation = nn.ReLU
+        self.activation = nn.SELU
         self.bn = bn
 
         self.conv = nn.Sequential(

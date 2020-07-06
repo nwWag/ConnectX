@@ -14,7 +14,7 @@ def mean_reward(rewards):
     return sum(r[0] if r[0] is not None else -1 for r in rewards) / float(len(rewards))
 
 class NetworkTrainer():
-    def __init__(self, module, module_copy, env, lr=1e-2, episodes=100000, epochs=2, eps=.99, loss=nn.SmoothL1Loss(), 
+    def __init__(self, module, module_copy, env, lr=1e-3, episodes=100000, epochs=2, eps=.99, loss=nn.SmoothL1Loss(), 
                 gamma=0.99, batch_size=32, replay_size= 15000, eval_every=3000, copy_every=100):
         self.module = module.to(device)
         self.module_hat = module_copy.to(device)
@@ -188,19 +188,8 @@ class NetworkTrainer():
             # Eval and save in case the module has improved ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++    
             if episode % self.eval_every == self.eval_every -1:
                 self.env.reset()
-                reward_random = mean_reward(evaluate("connectx", [temp_agent, "random"], num_episodes=50))
-                reward_negamax =  mean_reward(evaluate("connectx", [temp_agent, "negamax"], num_episodes=50))
-                reward_rand_random = mean_reward(evaluate("connectx", ["random", "random"], num_episodes=10))
-                reward_rand_negamax =  mean_reward(evaluate("connectx", ["random", "negamax"], num_episodes=10))
-                print("Ours vs Negamax:", reward_negamax)
-                print("Ours vs Random:",reward_random)
-                print("Random vs Negamax:", reward_rand_negamax)
-                print("Random vs Random:",reward_rand_random)
-                print()
-
-                if self.best < (reward_random+reward_negamax):
-                    torch.save(self.module.state_dict(), "model/"+ type(self.module).__name__ +  ".pt")
-                    torch.save(self.optim.state_dict(), "optimizer/"+ type(self.module).__name__  + ".pt")
+                torch.save(self.module.state_dict(), "model/"+ type(self.module).__name__ +  ".pt")
+                torch.save(self.optim.state_dict(), "optimizer/"+ type(self.module).__name__  + ".pt")
 
 if __name__ == "__main__":
     env = make("connectx", debug=False)

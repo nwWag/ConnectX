@@ -14,7 +14,7 @@ def mean_reward(rewards):
     return sum(r[0] if r[0] is not None else -1 for r in rewards) / float(len(rewards))
 
 class NetworkTrainer():
-    def __init__(self, module, module_copy, env, lr=1e-2, episodes=100000, epochs=2, eps=.99, loss=nn.MSELoss(reduction='mean'), 
+    def __init__(self, module, module_copy, env, lr=1e-2, episodes=100000, epochs=2, eps=.99, loss=nn.SmoothL1Loss(), 
                 gamma=0.99, batch_size=64, replay_size= 15000, eval_every=3000, copy_every=150):
         self.module = module.to(device)
         self.module_hat = module_copy.to(device)

@@ -1,3 +1,9 @@
+# ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++      
+# See training.py for details. This file is needed to satisfy the requirements by kaggle to construct an agent as one Def.
+# BUT IN CONTRAST TO TRAINING: we use not only the DQN as our agent but rather use the DQN only as the scoring function
+# for a lookahead search. Significantly better.
+# ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
 def agent_function(observation, configuration):
     import torch
     from torch import nn
@@ -66,7 +72,7 @@ def agent_function(observation, configuration):
             observation = switch(observation)
         return int(np.argmax(np.array([(q.item() if observation['board'][c] == 0 else -float('inf')) for c, q in enumerate(get_Qs(observation, configuration, module))])))
 
-
+    # Negamax code from original connectx repo. ADAPTED to work with DQN.
     def nega_agent(obs, configuration, module):
         columns = configuration.columns
         rows = configuration.rows

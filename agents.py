@@ -4,6 +4,11 @@ import numpy as np
 from config import device
 import torch.nn.functional as F
 
+# ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++      
+# File to store neural network agents. We tried various architectures. The best have been Q_Network (CNN,SELU and wihtout batchnorm) 
+# and ...
+# ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
 class Q_Network_Conv(nn.Module):
     def __init__(self, nc=1, ngf = 16):
         super(Q_Network_Conv, self).__init__()

@@ -12,7 +12,7 @@ import matplotlib
 matplotlib.use('Agg') 
 
 class NetworkTrainer():
-    def __init__(self, module, module_copy, env, lr=1e-2, episodes=100000, epochs=2, eps=.99, loss=nn.SmoothL1Loss(), 
+    def __init__(self, module, module_copy, env, lr=1e-3, episodes=100000, epochs=2, eps=.99, loss=nn.SmoothL1Loss(), 
                 gamma=0.99, batch_size=64, replay_size= 15000, eval_every=3000, copy_every=150):
         # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++      
         # Settings +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -62,9 +62,11 @@ class NetworkTrainer():
 
         # Change marks in case our agent starts at the second position
         def switch(board):
+            board = np.array(board)
             board[board == 1] = 3
             board[board == 2] = 1
             board[board == 3] = 2
+            board = list(board)
             return board
         
         # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++      

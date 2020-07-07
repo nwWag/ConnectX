@@ -55,9 +55,11 @@ def agent_function(observation, configuration):
     
     
     def switch(board):
+        board = np.array(board)
         board[board == 1] = 3
         board[board == 2] = 1
         board[board == 3] = 2
+        board = list(board)
         return board
 
     def get_Qs(observation, configuration, module):

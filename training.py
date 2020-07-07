@@ -8,6 +8,7 @@ from kaggle_environments import evaluate, make, utils
 from agents import Q_Network
 import matplotlib.pyplot as plt
 import matplotlib
+import copy
 matplotlib.use('Agg') 
 
 class NetworkTrainer():
@@ -101,8 +102,8 @@ class NetworkTrainer():
                 # Decide step ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
                 self.module.eval()
                 if observation.mark != 1:
-                    observation = switch(observation)
-                observation_old = observation
+                    observation['board'] = switch(observation['board'])
+                observation_old = copy.deepcopy(observation)
                 if random.uniform(0, 1) <= self.eps:
                     action = choice([c for c in range(self.columns) if observation['board'][c] == 0])
                 else:

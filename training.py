@@ -14,7 +14,7 @@ def mean_reward(rewards):
     return sum(r[0] if r[0] is not None else -1 for r in rewards) / float(len(rewards))
 
 class NetworkTrainer():
-    def __init__(self, module, module_copy, env, lr=1e-3, episodes=100000, epochs=2, eps=.99, loss=nn.MSELoss(reduction='mean'), 
+    def __init__(self, module, module_copy, env, lr=1e-2, episodes=100000, epochs=2, eps=.99, loss=nn.MSELoss(reduction='mean'), 
                 gamma=0.99, batch_size=64, replay_size= 15000, eval_every=3000, copy_every=150):
         self.module = module.to(device)
         self.module_hat = module_copy.to(device)
@@ -130,7 +130,12 @@ class NetworkTrainer():
 
             #Store anything to plot
             cum_rewards.append(np.array(cum_reward))
-            avg_rewards.append(np.mean(np.array(cum_rewards[max(0, episode - 100):(episode + 1)])))
+            avg_rewards.append(np.mean(np.array(cum_rewards[max(0, episode - 200):(episode + 1)])))
+            if avg_rewards[-1] > self.best and episode > 200:
+                self.env.reset()
+            torch.save(self.module.state_dict(), "model/"+ type(self.module).__name__ +  ".pt")
+            torch.save(self.optim.state_dict(), "optimizer/"+ type(self.module).__name__  + ".pt")
+            self.best = avg_rewards[-1]
 
             # Update (use full memory) and copy 
             if episode % self.copy_every == self.copy_every - 1:
@@ -183,13 +188,6 @@ class NetworkTrainer():
                 print("After", episode, "episodes updated with", len(self.replay_memory), "transitions \nAverage loss", np.mean(np.array(loss_arr)), "\n", flush=True)
                 # Copy +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
                 self.module_hat.load_state_dict(self.module.state_dict())
-
-
-            # Eval and save in case the module has improved ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++    
-            if episode % self.eval_every == self.eval_every -1:
-                self.env.reset()
-                torch.save(self.module.state_dict(), "model/"+ type(self.module).__name__ +  ".pt")
-                torch.save(self.optim.state_dict(), "optimizer/"+ type(self.module).__name__  + ".pt")
 
 if __name__ == "__main__":
     env = make("connectx", debug=False)

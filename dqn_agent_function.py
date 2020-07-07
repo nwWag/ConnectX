@@ -14,7 +14,7 @@ def agent_function(observation, configuration):
     device = 'cpu'
 
     class Q_Network(nn.Module):
-        def __init__(self, ngf = 128, actions=7, bn=False):
+        def __init__(self, ngf = 64, actions=7, bn=False):
             super(Q_Network, self).__init__()
             self.ngf = ngf
             self.activation = nn.SELU
@@ -22,10 +22,6 @@ def agent_function(observation, configuration):
 
             self.conv = nn.Sequential(
                 nn.Conv2d(3, ngf, 3, 1, 1, bias=False),
-                nn.BatchNorm2d(3) if self.bn else nn.Identity(),
-                self.activation(),
-
-                nn.Conv2d(ngf, ngf, 3, 1, 1, bias=False),
                 nn.BatchNorm2d(3) if self.bn else nn.Identity(),
                 self.activation(),
 
@@ -118,16 +114,10 @@ def agent_function(observation, configuration):
         max_depth = 2
 
         def negamax(board, mark, depth):
-            moves = sum(1 if cell != 0 else 0 for cell in board)
-
-            # Tie Game
-            if moves == size:
-                return (0, None)
-
             # Can win next.
             for column in range(columns):
                 if board[column] == 0 and is_win(board, column, mark, False):
-                    return ((size + 1 - moves) / 2, column)
+                    return (torch.max(get_Qs({'board':board}, configuration, module)), column)
 
             # Recursively check all columns.
             best_score = -size
@@ -143,6 +133,7 @@ def agent_function(observation, configuration):
                         (score, _) = negamax(next_board,
                                             1 if mark == 2 else 2, depth - 1)
                         score = score * -1
+
                     if score > best_score or (score == best_score and choice([True, False])):
                         best_score = score
                         best_column = column
@@ -155,7 +146,7 @@ def agent_function(observation, configuration):
         return column
 
 
-    module = Q_Network()
+    module = Q_Network().to(device)
     encoded_weights = """
     BASE64_PARAMS"""
     decoded = base64.b64decode(encoded_weights)

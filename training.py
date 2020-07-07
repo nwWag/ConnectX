@@ -113,7 +113,7 @@ class NetworkTrainer():
                 if done:
                     if reward == 1: # Won
                         reward = 20
-                    elif reward == 0: # Lost
+                    elif reward == -1: # Lost
                         reward = -20
                     else: # Draw
                         reward = 0

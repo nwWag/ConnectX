@@ -48,6 +48,8 @@ class NetworkTrainer():
             
         # function returning action of partner module  
         def temp_agent(observation, _):
+            if "board" in observation:
+                observation = observation["board"]
             action, _ = self.partner.get_action(observation)
             return action
         

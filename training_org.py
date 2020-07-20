@@ -12,8 +12,8 @@ import matplotlib
 matplotlib.use('Agg') 
 
 class NetworkTrainer():
-    def __init__(self, module, module_copy, env, lr=1e-2, episodes=100000, epochs=2, eps=.99, loss=nn.SmoothL1Loss(), 
-                gamma=0.99, batch_size=64, replay_size= 15000, eval_every=3000, copy_every=150):
+    def __init__(self, module, module_copy, env, lr=1e-3, episodes=100000, epochs=4, eps=.99, loss=nn.SmoothL1Loss(), 
+                gamma=0.99, batch_size=64, replay_size= 15000, eval_every=3000, copy_every=100):
         # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++      
         # Settings +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
         # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -111,7 +111,6 @@ class NetworkTrainer():
             t = 0
 
             while not self.env.done:
-                print(episode, self.env.done)
                 # Decide step ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
                 self.module.eval()
                 if observation.mark != 1:
@@ -163,62 +162,63 @@ class NetworkTrainer():
             # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
             # Conduct actual gradient descent +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
             # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+            loss_arr = []
+            if len(self.replay_memory) > self.batch_size:
+                for epoch in range(self.epochs):
+                    # Select transitions and concatenate to batch +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+                    batch_tuples = random.sample(self.replay_memory, self.batch_size)
+                    if len(batch_tuples) < self.batch_size:
+                        continue
+
+                    observation_batch = torch.stack([torch.from_numpy(np.array(tuple_[3])).to(device).float() for tuple_ in batch_tuples])
+                    observation_old_batch = torch.stack([torch.from_numpy(np.array(tuple_[0])).to(device).float() for tuple_ in batch_tuples])
+                    reward_batch = torch.stack([torch.from_numpy(np.array(tuple_[2])).to(device).float() for tuple_ in batch_tuples])
+
+                    action_batch = torch.from_numpy(np.array([[i, tuple_[1]] for i, tuple_ in enumerate(batch_tuples)]))
+                    done_batch = np.array([tuple_[4] for tuple_ in batch_tuples])
+
+
+                    # Calculate target ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+                    # Using Double DQN implementation
+                    # Make use of zero sum condition and use negative Q values of opponent as target
+                    # (see https://www.kaggle.com/matant/pytorch-dqn-connectx for a discussion of this)
+                    with torch.no_grad():
+                        Qs_batch_hat = -get_Qs_batch(switch(observation_batch), hat=True)
+                        Qs_batch = get_Qs_batch(observation_batch, hat=False)
+
+                        # Check if column full ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+                        illegal = torch.squeeze(observation_batch, dim=1)[torch.arange(Qs_batch.shape[0]).to(device),0] != 0
+                        # Be good, dont do anything illegal
+                        Qs_batch[illegal] = -1000
+                        Qs_batch_hat[illegal] = -1000
+                        # Check where "to go" to update Q value +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+                        Qs_arg_max_batch = torch.argmax(Qs_batch, dim=1)
+
+                        # Calculate target with current reward ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+                        Qs_max_batch = Qs_batch_hat[torch.arange(Qs_arg_max_batch.shape[0]).to(device),Qs_arg_max_batch]
+                        Qs_max_batch[done_batch] = 0
+                        y = reward_batch + self.gamma * Qs_max_batch
+
+
+                    # Perform gradient descent +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+                    Qs_old_batch =  get_Qs_batch(observation_old_batch, hat=False)
+                    x = Qs_old_batch[action_batch[:,0], action_batch[:,1]]
+                    self.optim.zero_grad()
+                    loss = self.loss(x, y)
+                    loss.backward()
+                    self.optim.step()
+                    loss_arr.append(loss.item())
+            
+            # Copy ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
             if episode % self.copy_every == self.copy_every - 1:
                 # Plot rewards ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
                 # Do not plot to often due to performance
+                print("After", episode, "episodes updated with", len(self.replay_memory), "transitions \nAverage loss", np.mean(np.array(loss_arr)), "\n", flush=True)
                 plt.plot(avg_rewards)
                 plt.savefig('plots/cum_rewards.png')
                 plt.close()
-
-                loss_arr = []
-                for epoch in range(self.epochs):
-                    # Select transitions and concatenate to batch +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-                    for batch_pointer in range(0, len(self.replay_memory), self.batch_size):
-                        batch_tuples = self.replay_memory[batch_pointer:(batch_pointer + self.batch_size)]
-                        if len(batch_tuples) < self.batch_size:
-                            continue
-
-                        observation_batch = torch.stack([torch.from_numpy(np.array(tuple_[3])).to(device).float() for tuple_ in batch_tuples])
-                        observation_old_batch = torch.stack([torch.from_numpy(np.array(tuple_[0])).to(device).float() for tuple_ in batch_tuples])
-                        reward_batch = torch.stack([torch.from_numpy(np.array(tuple_[2])).to(device).float() for tuple_ in batch_tuples])
-
-                        action_batch = torch.from_numpy(np.array([[i, tuple_[1]] for i, tuple_ in enumerate(batch_tuples)]))
-                        done_batch = np.array([tuple_[4] for tuple_ in batch_tuples])
-
-
-                        # Calculate target ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-                        # Using Double DQN implementation
-                        # Make use of zero sum condition and use negative Q values of opponent as target
-                        # (see https://www.kaggle.com/matant/pytorch-dqn-connectx for a discussion of this)
-                        with torch.no_grad():
-                            Qs_batch_hat = -get_Qs_batch(switch(observation_batch), hat=True)
-                            Qs_batch = get_Qs_batch(observation_batch, hat=False)
-
-                            # Check if column full ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-                            illegal = torch.squeeze(observation_batch, dim=1)[torch.arange(Qs_batch.shape[0]).to(device),0] != 0
-                            # Be good, dont do anything illegal
-                            Qs_batch[illegal] = -1000
-                            Qs_batch_hat[illegal] = -1000
-                            # Check where "to go" to update Q value +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-                            Qs_arg_max_batch = torch.argmax(Qs_batch, dim=1)
-
-                            # Calculate target with current reward ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-                            Qs_max_batch = Qs_batch_hat[torch.arange(Qs_arg_max_batch.shape[0]).to(device),Qs_arg_max_batch]
-                            Qs_max_batch[done_batch] = 0
-                            y = reward_batch + self.gamma * Qs_max_batch
-
-
-                        # Perform gradient descent +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-                        Qs_old_batch =  get_Qs_batch(observation_old_batch, hat=False)
-                        x = Qs_old_batch[action_batch[:,0], action_batch[:,1]]
-                        self.optim.zero_grad()
-                        loss = self.loss(x, y)
-                        loss.backward()
-                        self.optim.step()
-                        loss_arr.append(loss.item())
-                
-                print("After", episode, "episodes updated with", len(self.replay_memory), "transitions \nAverage loss", np.mean(np.array(loss_arr)), "\n", flush=True)
-                # Copy +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
                 self.module_hat.load_state_dict(self.module.state_dict())
 
 if __name__ == "__main__":

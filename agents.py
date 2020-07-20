@@ -64,7 +64,7 @@ class Q_Network(nn.Module):
     def __init__(self, ngf = 64, actions=7, bn=False):
         super(Q_Network, self).__init__()
         self.ngf = ngf
-        self.activation = nn.SELU
+        self.activation = nn.PReLU
         self.bn = bn
 
         self.conv = nn.Sequential(

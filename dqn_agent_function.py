@@ -23,7 +23,7 @@ def agent_function(observation, configuration):
         def __init__(self, ngf = 64, actions=7, bn=False):
             super(Q_Network, self).__init__()
             self.ngf = ngf
-            self.activation = nn.SELU
+            self.activation = nn.PReLU
             self.bn = bn
 
             self.conv = nn.Sequential(
@@ -55,11 +55,16 @@ def agent_function(observation, configuration):
     
     
     def switch(board):
-        board = np.array(board)
+        board_is_list = type(board) is list
+        if board_is_list:
+            board = np.array(board)
+
         board[board == 1] = 3
         board[board == 2] = 1
         board[board == 3] = 2
-        board = list(board)
+        
+        if board_is_list:
+            board = list(board)
         return board
 
     def get_Qs(observation, configuration, module):
@@ -71,7 +76,7 @@ def agent_function(observation, configuration):
 
     def temp_agent(observation, configuration, module):
         if observation.mark != 1:
-            observation = switch(observation)
+            observation['board'] = switch(observation['board'])
         return int(np.argmax(np.array([(q.item() if observation['board'][c] == 0 else -float('inf')) for c, q in enumerate(get_Qs(observation, configuration, module))])))
 
     # Negamax code from original connectx repo. ADAPTED to work with DQN.
@@ -125,7 +130,7 @@ def agent_function(observation, configuration):
             # Can win next.
             for column in range(columns):
                 if board[column] == 0 and is_win(board, column, mark, False):
-                    return (torch.max(get_Qs({'board':board}, configuration, module)), column)
+                    return (torch.max(get_Qs({'board':board} if mark == 1 else {'board': switch(board)} , configuration, module)), column)
 
             # Recursively check all columns.
             best_score = -size
@@ -134,7 +139,7 @@ def agent_function(observation, configuration):
                 if board[column] == 0:
                     # Max depth reached. Score based on cell proximity for a clustering effect.
                     if depth <= 0:
-                        score = torch.max(get_Qs({'board':board}, configuration, module))
+                        score = torch.max(get_Qs({'board':board} if mark == 1 else {'board': switch(board)} , configuration, module))
                     else:
                         next_board = board[:]
                         play(next_board, column, mark)

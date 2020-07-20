@@ -16,7 +16,7 @@ import copy
 
 
 class PolicyNetwork(nn.Module):
-    def __init__(self, num_inputs, num_actions, hidden_size=128, learning_rate=3e-4, gamma=0.99):
+    def __init__(self, num_inputs, num_actions, hidden_size=128, learning_rate=3e-4, gamma=0.90):
         super(PolicyNetwork, self).__init__()
         
         self.num_actions = num_actions
@@ -33,7 +33,7 @@ class PolicyNetwork(nn.Module):
     def get_action(self, state):
         row = torch.tensor([state[c] for c in range(self.num_actions)])
         state = torch.from_numpy(np.asarray(state)).float().unsqueeze(0)
-        probs = self.forward(Variable(state))
+        probs = self.forward(Variable(state))  # probs have shape (1 x num_actions)
         red_choices = torch.IntTensor([c for c in range(self.num_actions) if state.squeeze(0).numpy()[c] == 0])
         red_probs = probs.detach()[0, row == 0] / torch.sum(probs.detach()[0, row == 0])
         highest_prob_action = int(np.random.choice(red_choices, p=red_probs.numpy()))

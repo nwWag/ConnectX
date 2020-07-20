@@ -17,19 +17,21 @@ from tqdm import tqdm
 
 
 class NetworkTrainer():
-    def __init__(self, module, module_copy, env, lr=1e-2, episodes=2, gamma=0.99, 
-                eval_every = 3000, copy_every=100):
+    def __init__(self, module, module_copy, env, lr=1e-2, episodes=100000, copy_every=100, gamma=0.89):
         self.module = module.to(device)
+        self.module.gamma = gamma
+        self.module.load_state_dict(torch.load("./params_self_training.pth"))
         self.partner = module_copy.to(device)
+        self.partner.gamma = gamma
         self.partner.load_state_dict(self.module.state_dict())
         self.optim = optim.Adam(self.module.parameters(), lr=lr)
         self.episodes = episodes
         self.env = env
         self.rows = env.configuration['rows']
         self.columns = env.configuration['columns']
-        self.gamma = gamma
-        self.eval_every = eval_every
         self.copy_every = copy_every
+        print(self.module.gamma)
+        print(self.partner.gamma)
     
     def training(self):
         self.env.reset()
@@ -51,9 +53,10 @@ class NetworkTrainer():
             if "board" in observation:
                 observation = observation["board"]
             action, _ = self.partner.get_action(observation)
+            #print("Partner's move: {}".format(action))
             return action
         
-        cum_rewards = []
+        all_rewards = []
         
         for episode in tqdm(range(self.episodes)):
             log_probs = []
@@ -66,55 +69,61 @@ class NetworkTrainer():
             else:
                 trainer = self.env.train([temp_agent, None])
                 player_pos = 2
+
+            #print("Player_pos: {}".format(player_pos))
                 
             observation = trainer.reset()
             t = 0
-            
             while not self.env.done:
-                modules_move = False
+                #print("Round: {}".format(t))
                 switch_back = False
                 if observation.mark != 1:
+                    #print("Switch marks")
                     switch_back = True
                     observation['board'] = switch(observation['board'])
                     
-                if observation.mark * player_pos in [1, 4]:
-                    modules_move = True
-                    action, log_prob = self.module.get_action(observation['board'])
-                else: 
-                    action = temp_agent(observation['board'], None)
+                action, log_prob = self.module.get_action(observation['board'])
+                #print("My move ({}): {}".format("blue" if observation.mark == 1 else "grey", action))
+
+                if switch_back:
+                    #print("Switch back marks")
+                    observation['board'] = switch(observation['board'])
                 
-                #if switch_back:
-                 #   observation['board'] = switch(observation['board'])
-                
-                print(self.env.done)
                 observation, reward, done, _ = trainer.step(action)
-                print(self.env.done)
-                
-                if modules_move:
-                    print("My move")
-                    reward = 0 if reward is None else reward
-                    if done:
-                        if reward == 1:
-                            reward = 20
-                        else:
-                            reward = 0
+
+                reward = 0 if reward is None else reward
+                if done:
+                    if reward == 1:
+                        reward = 20
                     else:
-                        reward = -0.05
-                    log_probs.append(log_prob)
-                    rewards.append(reward)
+                        reward = 0
+                else:
+                    reward = -0.05
+                log_probs.append(log_prob)
+                rewards.append(reward)
+                t += 1
                     
             self.module.update_policy(rewards, log_probs)
-            cum_rewards.append(np.sum(np.array(rewards)))
+            all_rewards.append(np.sum(np.array(rewards)))
+            #print(rewards)
             
             if episode % self.copy_every == 0:
+                print("Update parameters of partner module")
                 self.partner.load_state_dict(self.module.state_dict())
-                last_200_cum_rewards = np.array(cum_rewards[max(0, episode-200) : (episode+1)])
-                plt.plot(last_200_cum_rewards)
-                plt.savefig("./cum_rewards.png")
+                last_200_rewards = np.array(all_rewards[max(0, episode-200) : (episode+1)])
+                plt.plot(last_200_rewards)
+                plt.xlabel('Episode')
+                plt.savefig("./rewards_last_200_episodes.pdf")
                 plt.close()
-                torch.save(self.module.state_dict(), "./params2.pth")
-                      
-        torch.save(self.module.state_dict(), "./params2.pth")
+                torch.save(self.module.state_dict(), "./params_self_training.pth")
+        plt.figure()
+        plt.plot(np.cumsum(all_rewards), label="Cumulated Reward")
+        plt.xlabel('Episode')
+        plt.title('Self Training:\nUpdate of partner agent every {} episodes'.format(self.copy_every))
+        plt.legend()
+        plt.savefig("./Cumulated_rewards_complete_training.pdf")
+        plt.close()
+        torch.save(self.module.state_dict(), "./params_self_training.pth")
         
 
 

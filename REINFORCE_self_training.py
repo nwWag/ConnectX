@@ -5,22 +5,18 @@ import torch
 from torch import nn, optim
 import numpy as np
 from config import device
-import random
-from random import choice
 from kaggle_environments import evaluate, make, utils
-from REINFORCE_Agent import PolicyNetwork
+from agents import PolicyNetwork
 import matplotlib.pyplot as plt
 import matplotlib
 matplotlib.use('Agg') 
-import copy
 from tqdm import tqdm
 
-
 class NetworkTrainer():
-    def __init__(self, module, module_copy, env, lr=1e-2, episodes=100000, copy_every=100, gamma=0.89):
+    def __init__(self, module, module_copy, env, lr=1e-2, episodes=100, copy_every=100, gamma=0.89):
         self.module = module.to(device)
         self.module.gamma = gamma
-        self.module.load_state_dict(torch.load("./params_self_training.pth"))
+        self.module.load_state_dict(torch.load("model/REINFORCE_params.pth"))
         self.partner = module_copy.to(device)
         self.partner.gamma = gamma
         self.partner.load_state_dict(self.module.state_dict())
@@ -113,17 +109,17 @@ class NetworkTrainer():
                 last_200_rewards = np.array(all_rewards[max(0, episode-200) : (episode+1)])
                 plt.plot(last_200_rewards)
                 plt.xlabel('Episode')
-                plt.savefig("./rewards_last_200_episodes.pdf")
+                plt.savefig("plots/REINFORCE_rewards_last_200_episodes.pdf")
                 plt.close()
-                torch.save(self.module.state_dict(), "./params_self_training.pth")
+                torch.save(self.module.state_dict(), "model/REINFORCE_params.pth")
         plt.figure()
         plt.plot(np.cumsum(all_rewards), label="Cumulated Reward")
         plt.xlabel('Episode')
         plt.title('Self Training:\nUpdate of partner agent every {} episodes'.format(self.copy_every))
         plt.legend()
-        plt.savefig("./Cumulated_rewards_complete_training.pdf")
+        plt.savefig("plots/REINFORCE_Cumulated_rewards_complete_training.pdf")
         plt.close()
-        torch.save(self.module.state_dict(), "./params_self_training.pth")
+        torch.save(self.module.state_dict(), "model/REINFORCE_params.pth")
         
 
 

@@ -1,15 +1,15 @@
 import inspect
 import os
-from dqn_agent_function import agent_function
+from REINFORCE_agent_function import agent_function
 import agents
 import base64
 import sys
 
 # Adapted from https://www.kaggle.com/matant/pytorch-dqn-connectx#Write-Submission-File
 
-agent_function_path = "dqn_agent_function.py"   # Cosntruct one function that contains all our agend needs
-params_path = "model/Q_Network.pt"              # Give path of entwork paramters
-outfile_path = 'submissions/submission_dqn.py'  # Where to write submission file
+agent_function_path = "REINFORCE_agent_function.py"   # Construct one function that contains all our agent needs
+params_path = "model/REINFORCE_params.pth"              # Give path of network parameters
+outfile_path = 'submissions/submission_REINFORCE.py'  # Where to write submission file
 
 with open(params_path, 'rb') as f:
     raw_bytes = f.read()

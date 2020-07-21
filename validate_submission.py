@@ -2,7 +2,7 @@ import sys
 from kaggle_environments import evaluate, make, utils
 #from  https://www.kaggle.com/matant/pytorch-dqn-connectx#Write-Submission-File
 out = sys.stdout
-infile_path = "submissions/submission_dqn.py"
+infile_path = "submissions/submission_REINFORCE.py"
 try:
     submission = utils.read_file(infile_path)
     agent = utils.get_last_callable(submission)

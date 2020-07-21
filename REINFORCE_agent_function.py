@@ -4,12 +4,8 @@ def agent_function(observation, configuration):
     import numpy as np
     import torch.nn.functional as F
     import numpy as np
-    import random
-    import math
     import base64
     import io
-    import time
-    from random import choice
 
     device = 'cpu'
 
@@ -37,31 +33,6 @@ def agent_function(observation, configuration):
             highest_prob_action = int(np.random.choice(red_choices, p=red_probs.numpy()))
             log_prob = torch.log(probs.squeeze(0)[highest_prob_action])
             return highest_prob_action, log_prob
-
-        def update_policy(self, rewards, log_probs):
-            discounted_rewards = []
-
-            for t in range(len(rewards)):
-                Gt = 0
-                pw = 0
-                for r in rewards[t:]:
-                    Gt = Gt + self.gamma ** pw * r
-                    pw = pw + 1
-                discounted_rewards.append(Gt)
-
-            discounted_rewards = torch.tensor(discounted_rewards)
-            if discounted_rewards.size(0) > 1:
-                discounted_rewards = (discounted_rewards - discounted_rewards.mean()) / (
-                        discounted_rewards.std() + 1e-9)  # normalize discounted rewards
-
-            policy_gradient = []
-            for log_prob, Gt in zip(log_probs, discounted_rewards):
-                policy_gradient.append(-log_prob * Gt)
-
-            self.optimizer.zero_grad()
-            policy_gradient = torch.stack(policy_gradient).sum()
-            policy_gradient.backward()
-            self.optimizer.step()
 
 
     def switch(board):

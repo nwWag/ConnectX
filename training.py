@@ -111,7 +111,6 @@ class NetworkTrainer():
             t = 0
 
             while not self.env.done:
-                print(episode, self.env.done)
                 # Decide step ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
                 self.module.eval()
                 if observation.mark != 1:

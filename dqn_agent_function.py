@@ -79,7 +79,7 @@ def agent_function(observation, configuration):
             observation['board'] = switch(observation['board'])
         return int(np.argmax(np.array([(q.item() if observation['board'][c] == 0 else -float('inf')) for c, q in enumerate(get_Qs(observation, configuration, module))])))
 
-    # Negamax code from original connectx repo. ADAPTED to work with DQN.
+    # Negamax code from original connectx repo. ADAPTED to work with DQN and extended with alpha beta pruning.
     def nega_agent(obs, configuration, module):
         columns = configuration.columns
         rows = configuration.rows
@@ -124,9 +124,9 @@ def agent_function(observation, configuration):
             )
 
         # Due to compute/time constraints the tree depth must be limited.
-        max_depth = 2
+        max_depth = 4
 
-        def negamax(board, mark, depth):
+        def negamax_slow(board, mark, depth):
             # Can win next.
             for column in range(columns):
                 if board[column] == 0 and is_win(board, column, mark, False):
@@ -153,6 +153,38 @@ def agent_function(observation, configuration):
 
             return (best_score, best_column)
 
+
+        def negamax(board, mark, depth, alpha=-float('inf'), beta= float('inf')):
+            # Can win next.
+            for column in range(columns):
+                if board[column] == 0 and is_win(board, column, mark, False):
+                    return (torch.max(get_Qs({'board':board} if mark == 1 else {'board': switch(board)} , configuration, module)), column)
+
+            # Recursively check all columns.
+            best_score = -size
+            best_column = None
+            for column in range(columns):
+                if board[column] == 0:
+                    # Max depth reached. Score based on cell proximity for a clustering effect.
+                    if depth <= 0:
+                        score = torch.max(get_Qs({'board':board} if mark == 1 else {'board': switch(board)} , configuration, module))
+                    else:
+                        next_board = board[:]
+                        play(next_board, column, mark)
+                        (score, _) = negamax(next_board,
+                                            1 if mark == 2 else 2, depth - 1,
+                                            alpha=-beta, beta=-alpha)
+                        score = score * -1
+
+                    if score > best_score or (score == best_score and choice([True, False])):
+                        best_score = score
+                        best_column = column
+                    alpha = max(alpha, score)
+                    if alpha >= beta:
+                        break
+
+            return (best_score, best_column)
+
         _, column = negamax(obs['board'][:], obs['mark'], max_depth)
         if column == None:
             column = choice([c for c in range(columns) if obs['board'][c] == 0])
@@ -166,4 +198,5 @@ def agent_function(observation, configuration):
     buffer = io.BytesIO(decoded)
     module.load_state_dict(torch.load(buffer, map_location=device))
     module.eval()
+
     return nega_agent(observation, configuration, module)

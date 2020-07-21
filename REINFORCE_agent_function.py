@@ -6,6 +6,9 @@ def agent_function(observation, configuration):
     import numpy as np
     import base64
     import io
+    from torch import optim
+    from torch.autograd import Variable
+
 
     device = 'cpu'
 
@@ -54,7 +57,7 @@ def agent_function(observation, configuration):
         return action
 
 
-    module = PolicyNetwork().to(device)
+    module = PolicyNetwork(num_inputs=42, num_actions=7).to(device)
     encoded_weights = """
         BASE64_PARAMS"""
     decoded = base64.b64decode(encoded_weights)

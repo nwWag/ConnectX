@@ -22,9 +22,9 @@ def train():
     trainer = env.train([None, "random"])
     
     net1 = PolicyNetwork(env.configuration.columns*env.configuration.rows, env.configuration.columns, 128)
-    net1.load_state_dict(torch.load("./params.pth"))
+    #net1.load_state_dict(torch.load("./params.pth"))
         
-    max_episode_num = 1000
+    max_episode_num = 5000
     max_steps = 10000
     numsteps = []
     avg_numsteps = []

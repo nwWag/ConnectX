@@ -13,7 +13,7 @@ matplotlib.use('Agg')
 from tqdm import tqdm
 
 class NetworkTrainer():
-    def __init__(self, module, module_copy, env, lr=1e-2, episodes=100, copy_every=100, gamma=0.89):
+    def __init__(self, module, module_copy, env, lr=1e-2, episodes=1000, copy_every=100, gamma=0.89):
         self.module = module.to(device)
         self.module.gamma = gamma
         self.module.load_state_dict(torch.load("model/REINFORCE_params.pth"))

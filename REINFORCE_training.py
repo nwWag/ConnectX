@@ -6,15 +6,16 @@ import matplotlib.pyplot as plt
 from kaggle_environments import evaluate, make, utils
 from tqdm import tqdm
 from agents import PolicyNetwork
+import torch
 
 
 # training:
 def train():
     env = make("connectx", debug=False)
-    trainer = env.train([None, "random"])
+    trainer = env.train([None, "negamax"])
     
     net1 = PolicyNetwork(env.configuration.columns*env.configuration.rows, env.configuration.columns, 128)
-    #net1.load_state_dict(torch.load("model/REINFORCE_params.pth"))
+    net1.load_state_dict(torch.load("model/REINFORCE_params.pth"))
         
     max_episode_num = 5000
     max_steps = 10000

@@ -102,7 +102,7 @@ def agent_function(observation, configuration):
             )
 
         # Due to compute/time constraints the tree depth must be limited.
-        max_depth = 4
+        max_depth = 2
 
         def negamax_slow(board, mark, depth):
             # Can win next.

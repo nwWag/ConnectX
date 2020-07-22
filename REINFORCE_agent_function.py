@@ -58,7 +58,7 @@ def agent_function(observation, configuration):
         return action
 
 
-    # Negamax code from original connectx repo. ADAPTED to work with DQN and extended with alpha beta pruning.
+    # Negamax code from original connectx repo. ADAPTED to work with REINFORCE and extended with alpha beta pruning.
     def nega_agent(obs, configuration, module):
         columns = configuration.columns
         rows = configuration.rows

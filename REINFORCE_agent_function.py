@@ -8,6 +8,7 @@ def agent_function(observation, configuration):
     import io
     from torch import optim
     from torch.autograd import Variable
+    from random import choice
 
 
     device = 'cpu'
